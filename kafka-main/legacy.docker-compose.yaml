@@ -1,0 +1,98 @@
+version: '3'
+services:
+  server:
+    image: node:16
+    container_name: legacy_wallet_watcher_server
+    volumes:
+      - ./server.ts:/server.ts
+      - ./utils.ts:/utils.ts
+      - ./events.ts:/events.ts
+      - ./node_modules:/node_modules
+      - ./tsconfig.json:/tsconfig.json
+      - ./package.json:/package.json
+    ports:
+      - '3000:3000'
+    command: npx ts-node-dev server.ts
+    environment:
+      KAFKA_BROKER: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  price:
+    image: node:16
+    container_name: legacy_wallet_watcher_price
+    volumes:
+      - ./price.ts:/price.ts
+      - ./events.ts:/events.ts
+      - ./node_modules:/node_modules
+      - ./tsconfig.json:/tsconfig.json
+      - ./package.json:/package.json
+    command: npx ts-node-dev price.ts
+    environment:
+      KAFKA_BROKER: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  balance:
+    image: node:16
+    container_name: legacy_wallet_watcher_balance
+    volumes:
+      - ./balance.ts:/balance.ts
+      - ./events.ts:/events.ts
+      - ./node_modules:/node_modules
+      - ./tsconfig.json:/tsconfig.json
+      - ./package.json:/package.json
+    command: npx ts-node-dev balance.ts
+    environment:
+      KAFKA_BROKER: kafka:9092
+    env_file: '.env'
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  zookeeper:
+    container_name: legacy_wallet_watcher_zookeeper
+    image: confluentinc/cp-zookeeper:7.3.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 2181:2181
+    logging:
+      driver: none
+
+  kafka:
+    container_name: legacy_wallet_watcher_kafka
+    image: confluentinc/cp-kafka:7.3.0
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.apache.kafka=ERROR,kafka=ERROR, kafka.cluster=ERROR,kafka.controller=ERROR,kafka.coordinator=ERROR,kafka.log=ERROR,kafka.server=ERROR,kafka.zookeeper=ERROR,state.change.logger=ERROR,kafka.cluster.Partition=ERROR,kafka.network=ERROR,kafka.common=ERROR,kafka.log.LogCleaner=ERROR
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: nc -z localhost 9092 || exit -1
+      start_period: 10s
+      interval: 2s
+      timeout: 30s
+      retries: 30
+
+  console:
+    container_name: legacy_wallet_watcher_console
+    image: docker.redpanda.com/vectorized/console:master-173596f
+    restart: on-failure
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    ports:
+      - 8080:8080
+    depends_on:
+      kafka:
+        condition: service_healthy

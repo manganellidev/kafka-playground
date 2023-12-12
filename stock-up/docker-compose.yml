@@ -1,0 +1,96 @@
+version: '3'
+
+networks:
+  stock-up-network:
+    driver: bridge
+
+services:
+  stocks-rest-api:
+    container_name: stock-up-stocks-rest-api
+    image: node:18-alpine
+    command: yarn start
+    working_dir: /stocks-rest-api-app
+    volumes:
+      - ./lib/kafka-client:/stocks-rest-api-app/lib/kafka-client
+      - ./stocks-rest-api:/stocks-rest-api-app
+    ports:
+      - 4040:4040
+    networks:
+      - stock-up-network
+    depends_on:
+      - redpanda
+
+  # worker-stocks-price:
+  #   container_name: stock-up-worker-stocks-price
+  #   image: node:18-alpine
+  #   command: yarn start
+  #   working_dir: /worker-stocks-price-app
+  #   volumes:
+  #     - ./lib/stocks-crawler:/worker-stocks-price-app/lib/stocks-crawler
+  #     - ./lib/redis-client:/worker-stocks-price-app/lib/redis-client
+  #     - ./lib/kafka-client:/worker-stocks-price-app/lib/kafka-client
+  #     - ./worker-stocks-price:/worker-stocks-price-app
+  #   networks:
+  #     - stock-up-network
+  #   depends_on:
+  #     - redpanda
+  #     - redis
+
+  redis:
+    container_name: stock-up-redis
+    image: redis/redis-stack-server:latest
+    command: redis-server --requirepass 123456
+    ports:
+      - 6379:6379
+    networks:
+      - stock-up-network
+
+  redis-commander:
+    container_name: stock-up-redis-commander
+    image: rediscommander/redis-commander:latest
+    restart: always
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=123456
+    ports:
+      - '8081:8081'
+    networks:
+      - stock-up-network
+    depends_on:
+      - redis
+
+  redpanda:
+    container_name: stock-up-redpanda-broker
+    image: docker.redpanda.com/vectorized/redpanda:v22.2.2
+    command:
+      - redpanda start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:29092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:29092
+    ports:
+      - 29092:29092
+    networks:
+      - stock-up-network
+
+  redpanda-console:
+    container_name: stock-up-redpanda-console
+    image: docker.redpanda.com/redpandadata/console:v2.3.1
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda:9092"]
+          schemaRegistry:
+            enabled: true
+            urls: ["http://redpanda:8081"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda:9644"]
+    ports:
+      - 8080:8080
+    networks:
+      - stock-up-network
+    depends_on:
+      - redpanda

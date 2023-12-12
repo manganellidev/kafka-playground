@@ -1,0 +1,63 @@
+version: "3"
+
+networks:
+  redpanda_network:
+    driver: bridge
+
+services:
+  redis:
+    container_name: hello_world_redis
+    image: redis/redis-stack-server:latest
+    networks:
+      - redpanda_network
+    ports:
+      - 6379:6379
+
+  redis-commander:
+    container_name: hello_world_redis_commander
+    image: rediscommander/redis-commander:latest
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    networks:
+      - redpanda_network
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+
+  redpanda:
+    container_name: hello_world_broker
+    image: docker.redpanda.com/vectorized/redpanda:v22.2.2
+    networks:
+      - redpanda_network
+    command:
+      - redpanda start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:29092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:29092
+    ports:
+      - 29092:29092
+
+  console:
+    container_name: hello_world_console
+    image: docker.redpanda.com/redpandadata/console:v2.3.1
+    networks:
+      - redpanda_network
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda:9092"]
+          schemaRegistry:
+            enabled: true
+            urls: ["http://redpanda:8081"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda:9644"]
+    ports:
+      - 8080:8080
+    depends_on:
+      - redpanda

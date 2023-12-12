@@ -1,0 +1,21 @@
+Fase ONE:
+1. User: set stock list
+2. stocks-rest-api: 
+  - receive user request
+  - publish to topic stock-<TICKER>-topic
+3. worker-stocks-price: 
+  - consume from stock-<TICKER>-topic
+  - if without value: fetch latest stock price
+  - upsert price to DB
+4. cron-stocks-price: (LOOP each 10 min) 
+  - retrieve all tickers from DB
+  - fetch latest stocks prices
+  - if price changes: publish to topic stock-<TICKER>-topic
+5. worker-stocks-price: 
+  - consume from stock-<TICKER>-topic
+  - if without value: fetch latest stock price
+  - upsert price to DB
+
+Fase TWO:
+6. stocks-admin: real-time prices ??? 
+  - stocks-rest-api: read prices and display to the user (UI, notify, etc.) ???

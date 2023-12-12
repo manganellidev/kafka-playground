@@ -1,0 +1,5 @@
+1. User: set stock list
+2. Service 1: receive user request and publish to topic user-stocks-list
+3. Service 2: consume new user stock list, persist this data (DB), fetch latest stock price, and publish to topic monitor-stocks-<ticker>
+4. Service 3: (LOOP each 10 min) consume new stock ticker, persist this data (DB), fetch latest stock price, if data chanfes persist this data (DB) and publish to topic quote-stocks-<ticker>
+5. Service 1: consume new quote and display to the user (UI, notify, etc.)

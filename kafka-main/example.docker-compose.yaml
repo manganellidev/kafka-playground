@@ -1,0 +1,26 @@
+version: '3'
+services:
+  example:
+    container_name: redpanda_example_app
+    image: node:16
+    volumes:
+      - ./example.ts:/example.ts
+      - ./node_modules:/node_modules
+      - ./tsconfig.json:/tsconfig.json
+      - ./package.json:/package.json
+    working_dir: /
+    command: npx ts-node-dev example.ts
+    environment:
+      KAFKA_BROKER: redpanda:29092
+    depends_on:
+      - redpanda
+
+  redpanda:
+    image: docker.redpanda.com/vectorized/redpanda:v22.2.2
+    container_name: redpanda_example_broker
+    command:
+      - redpanda start
+      - --kafka-addr PLAINTEXT://0.0.0.0:29092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:29092
+    ports:
+      - 29092:29092

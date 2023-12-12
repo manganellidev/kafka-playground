@@ -1,0 +1,2 @@
+finalize cron job, shoudl use ioredis lib
+configure docker-compose with cron job
